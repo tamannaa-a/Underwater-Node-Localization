@@ -1,0 +1,118 @@
+#include "ns3/core-module.h"
+#include "ns3/network-module.h"
+#include "ns3/mobility-module.h"
+#include "ns3/internet-module.h"
+#include "ns3/applications-module.h"
+#include "ns3/netanim-module.h"
+#include <fstream>
+#include <vector>
+#include <cmath>
+
+using namespace ns3;
+
+NS_LOG_COMPONENT_DEFINE("DVHopLocalization");
+
+struct NodeInfo {
+  uint32_t nodeId;
+  Vector position;
+  uint32_t hopCount;
+  double avgHopDistance;
+  Vector estimatedPos;
+};
+
+std::vector<NodeInfo> nodeInfos;
+
+void RecordNodeInfo(NodeContainer nodes, std::vector<uint32_t> anchors) {
+  for (uint32_t i = 0; i < nodes.GetN(); ++i) {
+    Ptr<Node> node = nodes.Get(i);
+    Vector pos = node->GetObject<MobilityModel>()->GetPosition();
+    NodeInfo info;
+    info.nodeId = i;
+    info.position = pos;
+
+    // Placeholder values (Replace with actual DV-Hop logic)
+    info.hopCount = 2 + (i % 3);
+    info.avgHopDistance = 80.0 + i * 2.0;
+
+    // Estimated position approximation using anchor nodes
+    double estX = 0.0;
+    double estY = 0.0;
+    for (uint32_t anchor : anchors) {
+      Vector anchorPos = nodes.Get(anchor)->GetObject<MobilityModel>()->GetPosition();
+      estX += anchorPos.x + ((rand() % 20) - 10);
+      estY += anchorPos.y + ((rand() % 20) - 10);
+    }
+    estX /= anchors.size();
+    estY /= anchors.size();
+    info.estimatedPos = Vector(estX, estY, 0.0);
+
+    nodeInfos.push_back(info);
+  }
+}
+
+void WriteLocalizationData(std::string filename) {
+  std::ofstream outFile(filename);
+  outFile << "NodeID,TrueX,TrueY,EstX,EstY,HopCount,AvgHopDistance\n";
+  for (const auto& info : nodeInfos) {
+    outFile << info.nodeId << "," << info.position.x << "," << info.position.y << ","
+            << info.estimatedPos.x << "," << info.estimatedPos.y << ","
+            << info.hopCount << "," << info.avgHopDistance << "\n";
+  }
+  outFile.close();
+}
+
+int main(int argc, char *argv[]) {
+  CommandLine cmd;
+  cmd.Parse(argc, argv);
+
+  uint32_t numNodes = 20;
+  uint32_t numAnchors = 4;
+
+  NodeContainer nodes;
+  nodes.Create(numNodes);
+
+  MobilityHelper mobility;
+  Ptr<ListPositionAllocator> posAlloc = CreateObject<ListPositionAllocator>();
+
+  for (uint32_t i = 0; i < numNodes; ++i) {
+    posAlloc->Add(Vector(100 + i * 10, 100 + i * 5, 0));
+  }
+
+  mobility.SetMobilityModel("ns3::RandomWaypointMobilityModel",
+                            "Speed", StringValue("ns3::UniformRandomVariable[Min=0.5|Max=2.0]"),
+                            "Pause", StringValue("ns3::ConstantRandomVariable[Constant=1.0]"),
+                            "PositionAllocator", PointerValue(posAlloc));
+  mobility.Install(nodes);
+
+  InternetStackHelper stack;
+  stack.Install(nodes);
+
+  AnimationInterface anim("dvhop_with_netanim.xml");
+  anim.SetMobilityPollInterval(Seconds(1));
+  anim.EnablePacketMetadata(true);
+
+  // Label Anchor Nodes
+  for (uint32_t i = 0; i < numAnchors; ++i) {
+    anim.UpdateNodeDescription(i, "Anchor-" + std::to_string(i));
+    anim.UpdateNodeColor(i, 255, 0, 0); // Red for anchor nodes
+  }
+
+  // Label Normal Nodes
+  for (uint32_t i = numAnchors; i < numNodes; ++i) {
+    anim.UpdateNodeDescription(i, "Node-" + std::to_string(i));
+    anim.UpdateNodeColor(i, 0, 255, 0); // Green for others
+  }
+
+  std::vector<uint32_t> anchors;
+  for (uint32_t i = 0; i < numAnchors; ++i)
+    anchors.push_back(i);
+
+  Simulator::Schedule(Seconds(5.0), &RecordNodeInfo, nodes, anchors);
+  Simulator::Schedule(Seconds(6.0), &WriteLocalizationData, "dvhop_localization.csv");
+
+  Simulator::Stop(Seconds(10.0));
+  Simulator::Run();
+  Simulator::Destroy();
+
+  return 0;
+}
