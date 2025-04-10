@@ -13,7 +13,6 @@ Technologies Used
 - **Programming Languages**: C++, Python
 - **Machine Learning Models**: Support Vector Regression, Random Forest, Neural Networks
 
-Machine Learning Integration
 Machine learning models are used to:
 - Predict average hop distances more accurately
 - Minimize localization errors due to irregular topologies
