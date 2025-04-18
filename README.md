@@ -22,7 +22,7 @@ By simulating realistic underwater environments and integrating ML models, the s
 
 # 🎯 Project Objectives
 
-Achieve high-accuracy node localization in underwater scenarios
+* Achieve high-accuracy node localization in underwater scenarios
 * Reduce estimation errors with ML-enhanced distance prediction
 * Test and evaluate with realistic simulations
 * Provide quantitative comparisons between localization techniques
